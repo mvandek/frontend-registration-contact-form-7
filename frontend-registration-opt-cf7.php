@@ -6,6 +6,10 @@
 if ( ! defined( 'ABSPATH' ) ) { 
     exit; // Exit if accessed directly
 }
+add_action('admin_enqueue_scripts', 'callback_frcf7_setting_up_scripts');
+function callback_frcf7_setting_up_scripts() {
+    wp_enqueue_style( 'frcf7css', frcf7_plugin_url('/css/style.css'), array(), FRCF7_VERSION, 'all' );
+}
 add_filter( 'wpcf7_skip_mail', function( $skip_mail, $contact_form ) {
     $post_id = sanitize_text_field($_POST['_wpcf7']);
     $enablemail = get_post_meta($post_id,'_cf7fr_enablemail_registration');
@@ -14,6 +18,16 @@ add_filter( 'wpcf7_skip_mail', function( $skip_mail, $contact_form ) {
     }
     return $skip_mail;
 }, 10, 2 );
+function frcf7_plugin_url( $path = '' ) {
+    $url = plugins_url( $path, FRCF7_PLUGIN );
+
+    if ( is_ssl()
+    and 'http:' == substr( $url, 0, 5 ) ) {
+        $url = 'https:' . substr( $url, 5 );
+    }
+
+    return $url;
+}
 function create_user_from_registration($cfdata) {
 	//$cmtagobj = new WPCF7_Shortcode( $tag );
 	$post_id = sanitize_text_field($_POST['_wpcf7']);
@@ -32,7 +46,7 @@ function create_user_from_registration($cfdata) {
 		    } elseif (isset($cfdata->posted_data)) {
 		        $formdata = $cfdata->posted_data;
 		    } 
-        $password = wp_generate_password( 20, false );
+        $password = wp_generate_password( 12, false );
         $email = $formdata["".$cf7fre.""];
         $name = $formdata["".$cf7fru.""];
         // Construct a username from the user's name
@@ -58,17 +72,16 @@ function create_user_from_registration($cfdata) {
                 'last_name' => end($name_parts),
                 'role' => $cf7frr
             );
-
-            // Use WP’s built-in email new user notification
-            add_action( 'user_register', function( $user_id ) {
-                wp_new_user_notification( $user_id, NULL, 'user' );
-            } );
-
-            $user_id = wp_insert_user( $userdata );	        
+            $user_id = wp_insert_user( $userdata );
+            if ( !is_wp_error($user_id) ) {
+				/**
+				 * Use the WordPress function wp_new_user_notification() for sending an welcome email to the newly created user instead of an hardcoded form.
+				 */ 
+					wp_new_user_notification( $user_id, $notify = 'user' );
+			}        
 	    }
 
 	}
     return $cfdata;
 }
 add_action('wpcf7_before_send_mail', 'create_user_from_registration', 1, 2);
-?>
